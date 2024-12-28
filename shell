@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+set -eEuo pipefail
+shopt -s inherit_errexit
+
+cfg="$1"; shift
+
+self="$(dirname "$BASH_SOURCE[0]")"
+
+export TF_VAR_gke_external_access_cidr="$(curl -s https://ifconfig.me)/32"
+export PATH="$self/bin:$PATH"
+set -a; source "$cfg"; set +a
+
+"$@"
