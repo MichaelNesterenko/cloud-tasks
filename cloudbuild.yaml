@@ -1,0 +1,45 @@
+steps:
+  - id: docker-build
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_APP_IMAGE_NAME}", "app/"]
+
+  - id: docker-push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_APP_IMAGE_NAME}"]
+
+  - id: db-migration-prepare
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "app-db-migration:latest", "db/"]
+  - id: db-migration-run
+    name: app-db-migration:latest
+    args: ["${_DB_HOST}", "${_DB_NAME}"]
+    secretEnv: ['APP_DB_MIGRATION_USERNAME', 'APP_DB_MIGRATION_PASSWORD']
+
+  - id: gke-deploy
+    name: gcr.io/cloud-builders/gke-deploy
+    args:
+    - run
+    - --filename=./app/k8s.yaml
+    - --image
+    - ${_APP_IMAGE_NAME}
+    - --location=$LOCATION
+    - --cluster=app-cluster
+
+substitutions:
+  _APP_IMAGE_NAME: ${LOCATION}-docker.pkg.dev/${PROJECT_ID}/app-gke-repo/app:latest
+  _DB_USER: app-sa@celestial-brand-445816-p7.iam.gserviceaccount.com
+  _DB_HOST: celestial-brand-445816-p7:us-central1:app-database
+  _DB_NAME: app
+
+logsBucket: gs://${PROJECT_ID}-app-cloudbuild
+options:
+  dynamicSubstitutions: true
+  # pool: some issue with quota, TODO need to check later
+  #   name: projects/$PROJECT_ID/locations/$LOCATION/workerPools/app-build-pool
+
+availableSecrets:
+  secretManager:
+  - versionName: projects/$PROJECT_ID/secrets/app-migration-db-username/versions/latest
+    env: APP_DB_MIGRATION_USERNAME
+  - versionName: projects/$PROJECT_ID/secrets/app-migration-db-password/versions/latest
+    env: APP_DB_MIGRATION_PASSWORD

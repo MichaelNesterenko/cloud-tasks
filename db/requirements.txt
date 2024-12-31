@@ -1,0 +1,2 @@
+yoyo-migrations~=9.0.0
+PyMySQL~=1.1.1

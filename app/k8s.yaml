@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-deployment
+  labels:
+    app: app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app
+  template:
+    metadata:
+      labels:
+        app: app
+    spec:
+      serviceAccountName: app-ksa
+      containers:
+      - name: app
+        image: us-central1-docker.pkg.dev/celestial-brand-445816-p7/app-gke-repo/app:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: app-port
+        env:
+        - name: db_connection_type
+          value: proxy
+        - name: db_host
+          valueFrom:
+            configMapKeyRef:
+              name: app-db-config
+              key: db_host
+        - name: db_user
+          valueFrom:
+            configMapKeyRef:
+              name: app-db-config
+              key: db_user
+        - name: db_name
+          valueFrom:
+            configMapKeyRef:
+              name: app-db-config
+              key: db_name
+      - name: proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.1
+        args:
+          - --auto-iam-authn
+          - --psc
+          - celestial-brand-445816-p7:us-central1:app-database
+        securityContext:
+          runAsNonRoot: true
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-service
+  labels:
+      app: app
+spec:
+  selector:
+    app: app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: app-port
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+  labels:
+    app: app
+spec:
+  rules:
+  - host: "app.app"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: app-service
+            port:
+              number: 80
